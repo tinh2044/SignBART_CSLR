@@ -29,8 +29,6 @@ def train_one_epoch(args, model, gloss_tokenizer, data_loader, optimizer, epoch,
             sys.exit(1)
         metric_logger.update(loss=loss_value)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
-    if args.run:
-        args.run.log({'epoch': epoch + 1, 'epoch/train_loss': loss_value})
 
     print("Averaged resluts:", metric_logger)
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
