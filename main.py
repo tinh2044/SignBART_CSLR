@@ -134,7 +134,7 @@ def main(args, cfg):
     min_loss = 200
     bleu_4 = 0
     for epoch in range(args.start_epoch, args.epochs):
-        train_results = train_one_epoch(args, model, gloss_tokenizer, train_dataloader, optimizer, device, epoch, print_freq=args.print_freq)
+        train_results = train_one_epoch(args, model, train_dataloader, optimizer, epoch, print_freq=args.print_freq)
         scheduler.step()
         checkpoint_paths = [output_dir / f'checkpoint.pth']
         for checkpoint_path in checkpoint_paths:

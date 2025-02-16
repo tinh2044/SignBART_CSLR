@@ -10,7 +10,7 @@ from logger import MetricLogger, SmoothedValue
 from utils import ctc_decode
 
 
-def train_one_epoch(args, model, gloss_tokenizer, data_loader, optimizer, epoch, print_freq= 1):
+def train_one_epoch(args, model, data_loader, optimizer, epoch, print_freq= 1):
     model.train()
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
