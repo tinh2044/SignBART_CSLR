@@ -6,9 +6,10 @@ from .vl_mapper import VLMapper
 
 
 class SignLanguageModel(torch.nn.Module):
-    def __init__(self, cfg, gloss_tokenizer):
+    def __init__(self, cfg, gloss_tokenizer, device='cpu'):
         super().__init__()
-        self.task, self.device = cfg['task'], cfg['device']
+        self.task = cfg['task']
+        self.device = device
         model_cfg = cfg['model']
         if self.task == 'S2G':
             self.text_tokenizer = None
@@ -34,8 +35,12 @@ class SignLanguageModel(torch.nn.Module):
                                       out_features=self.translation_network.input_dim,
                                       gloss_id2str=self.gloss_tokenizer.id2gloss,
                                       gls2embed=getattr(self.translation_network, 'gls2embed', None))
+            self.to(self.device)
 
     def forward(self, src_input, **kwargs):
+        
+        src_input = {k: v.to(self.device) for k, v in src_input.items()}
+        
         if self.task == "S2G":
             recognition_outputs = self.recognition_network(src_input)
             model_outputs = {**recognition_outputs}

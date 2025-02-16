@@ -81,7 +81,7 @@ def main(args, cfg):
     print(f"Creating model:")
     # cfg['model']['device'] = device
     # cfg['model']['task'] = cfg['task']
-    model = SignLanguageModel(cfg=cfg, gloss_tokenizer=gloss_tokenizer)
+    model = SignLanguageModel(cfg=cfg, gloss_tokenizer=gloss_tokenizer, device=device)
     n_parameters = utils.count_model_parameters(model)
     print(model)
     print(f"Number of parameters: {n_parameters}")
