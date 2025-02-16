@@ -10,6 +10,8 @@ import random
 from pathlib import Path
 from loguru import logger
 
+import torch.distributed as dist
+
 
 from optimizer import build_optimizer, build_scheduler
 from Tokenizer import GlossTokenizer
@@ -26,6 +28,11 @@ def get_args_parser():
     parser.add_argument('--epochs', default=100, type=int)
 
     parser.add_argument('--finetune', default='', help='finetune from checkpoint')
+    
+    parser.add_argument('--world_size', default=2, type=int,
+                        help='number of distributed processes')
+    parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
+    parser.add_argument('--local_rank', default=0, type=int)
 
     parser.add_argument('--device', default='cpu', help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
@@ -48,9 +55,12 @@ def get_args_parser():
     return parser
 
 def main(args, cfg):
-    seed = args.seed
+    # seed = args.seed
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
+    utils.init_distributed_mode()
+    
+    seed = args.seed + utils.get_rank()
     # Set seed
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -138,7 +148,7 @@ def main(args, cfg):
         scheduler.step()
         checkpoint_paths = [output_dir / f'checkpoint.pth']
         for checkpoint_path in checkpoint_paths:
-           torch.save({
+           utils.save_on_master({
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'scheduler': scheduler.state_dict(),
@@ -153,7 +163,7 @@ def main(args, cfg):
                 bleu_4 = test_results["bleu4"]
                 checkpoint_paths = [output_dir / 'best_checkpoint.pth']
                 for checkpoint_path in checkpoint_paths:
-                    torch.save({
+                    utils.save_on_master({
                         'model': model.state_dict(),
                         'optimizer': optimizer.state_dict(),
                         'scheduler': scheduler.state_dict(),
@@ -166,7 +176,7 @@ def main(args, cfg):
                 min_loss = test_results["wer"]
                 checkpoint_paths = [output_dir / 'best_checkpoint.pth']
                 for checkpoint_path in checkpoint_paths:
-                    torch.save({
+                    utils.save_on_master({
                             'model': model.state_dict(),
                             'optimizer': optimizer.state_dict(),
                             'scheduler': scheduler.state_dict(),
@@ -205,6 +215,12 @@ def main(args, cfg):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
+
+def init_ddp(local_rank):
+    torch.cuda.set_device(local_rank)
+    os.environ['RANK'] = str(local_rank)
+    dist.init_process_group(backend='nccl', init_method='env://')
+
 
 if __name__ == '__main__':
     os.environ["TOKENIZERS_PARALLELISM"] = "false"

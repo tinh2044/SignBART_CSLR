@@ -2761,6 +2761,21 @@ def wer_list(references, hypotheses):
         total_ins += res["num_ins"]
         total_sub += res["num_sub"]
         total_ref_len += res["num_ref"]
+        
+    if total_ref_len == 0:
+        total_ref_len = 1
+    
+    if total_error == 0:
+        total_error = 1
+
+    if total_del == 0:
+        total_del = 1
+
+    if total_ins == 0:
+        total_ins = 1
+    
+    if total_sub == 0:
+        total_sub = 1
 
     wer = (total_error / total_ref_len) * 100
     del_rate = (total_del / total_ref_len) * 100
