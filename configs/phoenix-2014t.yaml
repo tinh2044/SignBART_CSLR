@@ -1,0 +1,164 @@
+task: S2G
+device: cpu
+do_translation: False
+do_recognition: True
+data:
+  root: ./data/Phoenix-2014-T
+  max_len: 256
+  dataset_name: Phoenix-2014-T
+  input_streams: keypoint
+  lowercase: False
+  max_sent_length: 256
+  joint_parts:
+    [
+      [11, 12, 13, 14, 15, 16],
+      [
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+      ],
+      [
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+      ],
+    ]
+  shuffle: True
+  normalize: True
+gloss_tokenizer:
+  gloss2id_file: ./data/Phoenix-2014-T/gloss2ids.json
+  split: " "
+
+testing:
+  recognition:
+    beam_size: 5
+  translation:
+training:
+  model_dir: ./outputs/SLR/Phoenix-2014T
+  validation:
+    recognition:
+      beam_size: 1
+    translation:
+
+  optimization:
+    optimizer: Adam
+    learning_rate:
+      default: 1.0e-3
+    weight_decay: 0.001
+    betas:
+      - 0.9
+      - 0.998
+    scheduler: cosineannealing
+    t_max: 100
+model:
+  RecognitionNetwork:
+    num_labels: 1120
+    activation_dropout: 0.1
+    attention_dropout: 0.0
+    classifier_dropout: 0.4
+    d_model: 512
+    decoder_attention_heads: 16
+    decoder_ffn_dim: 2048
+    decoder_layerdrop: 0.2
+    decoder_layers: 4
+    dropout: 0.0
+    encoder_attention_heads: 16
+    encoder_ffn_dim: 2048
+    encoder_layerdrop: 0.2
+    encoder_layers: 4
+    joint_idx:
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      - 16
+      - 33
+      - 34
+      - 35
+      - 36
+      - 37
+      - 38
+      - 39
+      - 40
+      - 41
+      - 42
+      - 43
+      - 44
+      - 45
+      - 46
+      - 47
+      - 48
+      - 49
+      - 50
+      - 51
+      - 52
+      - 53
+      - 54
+      - 55
+      - 56
+      - 57
+      - 58
+      - 59
+      - 60
+      - 61
+      - 62
+      - 63
+      - 64
+      - 65
+      - 66
+      - 67
+      - 68
+      - 69
+      - 70
+      - 71
+      - 72
+      - 73
+      - 74
+    max_position_embeddings: 512
+    visual_head:
+      input_size: 512
+      hidden_size: 1024
+      ff_size: 2048
+      pe: True
+      ff_kernelsize:
+        - 3
+        - 3
+
+    cross_distillation: True
