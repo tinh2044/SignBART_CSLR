@@ -42,11 +42,14 @@ def get_args_parser():
     parser.add_argument("--log_all", action="store_true",
                         help="flag to log in all processes, otherwise only in rank0",
                         )
+    
+    parser.add_argument("--print_freq", default=10, type=int,
+                        help="print frequency")
     return parser
 
 def main(args, cfg):
     seed = args.seed
-    device = "cuda" if torch.cuda.is_available() and cfg['device']=='cuda' else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     
     # Set seed
     torch.manual_seed(seed)
@@ -82,6 +85,7 @@ def main(args, cfg):
     # cfg['model']['device'] = device
     # cfg['model']['task'] = cfg['task']
     model = SignLanguageModel(cfg=cfg, gloss_tokenizer=gloss_tokenizer, device=device)
+    model = model.to(device)
     n_parameters = utils.count_model_parameters(model)
     print(model)
     print(f"Number of parameters: {n_parameters}")
@@ -107,26 +111,30 @@ def main(args, cfg):
             scheduler.load_state_dict(checkpoint['scheduler'])
         args.start_epoch = checkpoint['epoch'] + 1
 
+
     if args.eval:
         if not args.resume:
             logger.warning('Please specify the trained model: --resume /path/to/best_checkpoint.pth')
         dev_stats = evaluate_fn(args, config, dev_dataloader, model, gloss_tokenizer, epoch=0, beam_size=5,
                               generate_cfg=config['training']['validation']['translation'],
-                              do_translation=config['do_translation'], do_recognition=config['do_recognition'])
+                              do_translation=config['do_translation'], do_recognition=config['do_recognition'],
+                              print_freq=args.print_freq)
         print(f"Dev loss of the network on the {len(dev_dataloader)} test videos: {dev_stats['loss']:.3f}")
 
         test_stats = evaluate_fn(args, config, test_dataloader, model, gloss_tokenizer, epoch=0, beam_size=5,
                               generate_cfg=config['testing']['translation'],
-                              do_translation=config['do_translation'], do_recognition=config['do_recognition'])
+                              do_translation=config['do_translation'], do_recognition=config['do_recognition'],
+                              print_freq=args.print_freq)
         print(f"Test loss of the network on the {len(test_dataloader)} test videos: {test_stats['loss']:.3f}")
         return
 
+    print(f"Trainining on {device}")
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     min_loss = 200
     bleu_4 = 0
     for epoch in range(args.start_epoch, args.epochs):
-        train_results = train_one_epoch(args, model, gloss_tokenizer, train_dataloader, optimizer, device, epoch)
+        train_results = train_one_epoch(args, model, gloss_tokenizer, train_dataloader, optimizer, device, epoch, print_freq=args.print_freq)
         scheduler.step()
         checkpoint_paths = [output_dir / f'checkpoint.pth']
         for checkpoint_path in checkpoint_paths:
@@ -139,7 +147,7 @@ def main(args, cfg):
         test_results = evaluate_fn(args, config, dev_dataloader, model, gloss_tokenizer, epoch,
                               beam_size=config['training']['validation']['recognition']['beam_size'],
                               generate_cfg=config['training']['validation']['translation'],
-                              do_translation=config['do_translation'], do_recognition=config['do_recognition'])
+                              do_translation=config['do_translation'], do_recognition=config['do_recognition'], print_freq=args.print_freq)
         if config['task'] == "S2T":
             if bleu_4 < test_results["bleu4"]:
                 bleu_4 = test_results["bleu4"]
@@ -180,11 +188,11 @@ def main(args, cfg):
         model.load_state_dict(checkpoint['model'], strict=True)
         dev_stats = evaluate_fn(args, config, dev_dataloader, model, gloss_tokenizer, epoch=0, beam_size=config['testing']['recognition']['beam_size'],
                              generate_cfg=config['training']['validation']['translation'],
-                             do_translation=config['do_translation'], do_recognition=config['do_recognition'])
+                             do_translation=config['do_translation'], do_recognition=config['do_recognition'], print_freq=args.print_freq)
         print(f"Dev loss of the network on the {len(dev_dataloader)} test videos: {dev_stats['loss']:.3f}")
         test_stats = evaluate_fn(args, config, test_dataloader, model, gloss_tokenizer, epoch=0, beam_size=config['testing']['recognition']['beam_size'],
                               generate_cfg=config['testing']['translation'],
-                              do_translation=config['do_translation'], do_recognition=config['do_recognition'])
+                              do_translation=config['do_translation'], do_recognition=config['do_recognition'], print_freq=args.print_freq)
         print(f"Test loss of the network on the {len(test_dataloader)} test videos: {test_stats['loss']:.3f}")
         if config['do_recognition']:
             with (output_dir / "log.txt").open("a") as f:
