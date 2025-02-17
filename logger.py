@@ -77,7 +77,7 @@ class SmoothedValue(object):
 
 
 
-class MetricLogger:
+class MetricLogger(object):
     def __init__(self, delimiter="\t"):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter
@@ -86,7 +86,7 @@ class MetricLogger:
         for k, v in kwargs.items():
             if isinstance(v, torch.Tensor):
                 v = v.item()
-            assert isinstance(v, (float, int)), f"Value for {k} must be float or int, got {type(v)}"
+            assert isinstance(v, (float, int))
             self.meters[k].update(v)
 
     def __getattr__(self, attr):
@@ -94,10 +94,16 @@ class MetricLogger:
             return self.meters[attr]
         if attr in self.__dict__:
             return self.__dict__[attr]
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{attr}'")
+        raise AttributeError("'{}' object has no attribute '{}'".format(
+            type(self).__name__, attr))
 
     def __str__(self):
-        return self.delimiter.join(f"{name}: {meter}" for name, meter in self.meters.items())
+        loss_str = []
+        for name, meter in self.meters.items():
+            loss_str.append(
+                "{}: {}".format(name, str(meter))
+            )
+        return self.delimiter.join(loss_str)
 
     def synchronize_between_processes(self):
         for meter in self.meters.values():
@@ -107,45 +113,66 @@ class MetricLogger:
         self.meters[name] = meter
 
     def log_every(self, iterable, print_freq, header=None):
+        i = 0
         if not header:
-            header = ""
+            header = ''
         start_time = time.time()
-        iter_time = SmoothedValue(fmt="{avg:.4f}")
-        data_time = SmoothedValue(fmt="{avg:.4f}")
-
-        # Kiểm tra có dùng GPU không
-        use_cuda = torch.cuda.is_available()
-        MB = 1024.0 * 1024.0
-
-        # Kiểm tra local rank để log đúng process
-        local_rank = int(os.environ.get("LOCAL_RANK", -1))
-        is_main_process = local_rank in [-1, 0]
-
-        # Tạo tqdm progress bar
-        pbar = tqdm(iterable, desc=header, leave=True, disable=not is_main_process)
-
         end = time.time()
-        for i, obj in enumerate(pbar):
+        iter_time = SmoothedValue(fmt='{avg:.4f}')
+        data_time = SmoothedValue(fmt='{avg:.4f}')
+        space_fmt = ':' + str(len(str(len(iterable)))) + 'd'
+        log_msg = [
+            header,
+            '[{0' + space_fmt + '}/{1}]',
+            'eta: {eta}',
+            '{meters}',
+            'time: {time}',
+            'data: {data}'
+        ]
+        if torch.cuda.is_available():
+            log_msg.append('max mem: {memory:.0f}')
+        log_msg = self.delimiter.join(log_msg)
+        MB = 1024.0 * 1024.0
+        for obj in iterable:
             data_time.update(time.time() - end)
             yield obj
             iter_time.update(time.time() - end)
-
             if i % print_freq == 0 or i == len(iterable) - 1:
                 eta_seconds = iter_time.global_avg * (len(iterable) - i)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-                log_msg = f"eta: {eta_string} {self} time: {iter_time} data: {data_time}"
-
-                if use_cuda:
-                    max_mem = torch.cuda.max_memory_allocated() / MB
-                    log_msg += f" max mem: {max_mem:.0f}"
-
-                # Cập nhật tqdm bar
-                pbar.set_postfix_str(log_msg)
-
+                if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+                    if os.environ['LOCAL_RANK'] == '0':
+                        if torch.cuda.is_available():
+                            print(log_msg.format(
+                                i, len(iterable), eta=eta_string,
+                                meters=str(self),
+                                time=str(iter_time), data=str(data_time),
+                                memory=torch.cuda.max_memory_allocated() / MB))
+                        else:
+                            print(log_msg.format(
+                                i, len(iterable), eta=eta_string,
+                                meters=str(self),
+                                time=str(iter_time), data=str(data_time)))
+                else:
+                    if torch.cuda.is_available():
+                        print(log_msg.format(
+                            i, len(iterable), eta=eta_string,
+                            meters=str(self),
+                            time=str(iter_time), data=str(data_time),
+                            memory=torch.cuda.max_memory_allocated() / MB))
+                    else:
+                        print(log_msg.format(
+                            i, len(iterable), eta=eta_string,
+                            meters=str(self),
+                            time=str(iter_time), data=str(data_time)))
+            i += 1
             end = time.time()
-
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-
-        if is_main_process:
-            print(f"{header} Total time: {total_time_str} ({total_time / len(iterable):.4f} s / it)")
+        if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+            if os.environ['LOCAL_RANK'] == '0':
+                print('{} Total time: {} ({:.4f} s / it)'.format(
+                    header, total_time_str, total_time / len(iterable)))
+        else:
+            print('{} Total time: {} ({:.4f} s / it)'.format(
+                header, total_time_str, total_time / len(iterable)))

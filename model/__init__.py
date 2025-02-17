@@ -39,7 +39,8 @@ class SignLanguageModel(torch.nn.Module):
 
     def forward(self, src_input, **kwargs):
         
-        # src_input = {k: v.cuda() if isinstance(v, torch.Tensor) else v for k, v in src_input.items()}
+        if torch.cuda.is_available():
+            src_input = {k: v.cuda() if isinstance(v, torch.Tensor) else v for k, v in src_input.items()}
         
         if self.task == "S2G":
             recognition_outputs = self.recognition_network(src_input)

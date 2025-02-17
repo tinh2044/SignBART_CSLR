@@ -48,7 +48,7 @@ def evaluate_fn(args, config, dataloader, model, tokenizer, epoch, beam_size=1, 
                 logits = output['gloss_logits']
                 ctc_decode_output = ctc_decode(gloss_logits=logits, 
                                                beam_size=beam_size,
-                                                input_lengths=output['input_lengths'])
+                                                input_lengths=output['valid_len_in'])
                 # # print(ctc_decode_output)
                 
                 batch_pred_gls = tokenizer.batch_decode(ctc_decode_output)
