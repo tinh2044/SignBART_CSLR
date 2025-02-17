@@ -5,3 +5,4 @@ notebooks/
 __pycache__/
 model/__pycache__/
 .vscode/
+/t.py
