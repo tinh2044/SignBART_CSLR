@@ -16,14 +16,14 @@ class KeypointsEncoderLayer(nn.Module):
         self.joint_idx = joint_idx
         self.coordinate_mapping = CoordinateMapping(in_dim, out_dim)
         
-        self.first_norm_x = nn.LayerNorm(out_dim)
-        self.first_norm_y = nn.LayerNorm(out_dim)
+        # self.first_norm_x = nn.LayerNorm(out_dim)
+        # self.first_norm_y = nn.LayerNorm(out_dim)
         
-        self.self_attn_x = SelfAttention(out_dim, attention_heads, dropout)
-        self.self_attn_y = SelfAttention(out_dim, attention_heads, dropout)
+        # self.self_attn_x = SelfAttention(out_dim, attention_heads, dropout)
+        # self.self_attn_y = SelfAttention(out_dim, attention_heads, dropout)
         
-        self.cross_attn = CrossAttention(out_dim, attention_heads, dropout)
-        
+        self.cross_attn_x = CrossAttention(out_dim, attention_heads, dropout)
+        self.cross_attn_y = CrossAttention(out_dim, attention_heads, dropout)
         
         self.ffn_x = FeedForwardLayer(out_dim, ff_dim, dropout)
         self.ffn_y = FeedForwardLayer(out_dim, ff_dim, dropout)
@@ -42,16 +42,16 @@ class KeypointsEncoderLayer(nn.Module):
         x_embed = self.pos_emb(x_embed)
         y_embed = self.pos_emb(y_embed)
         
-        x_embed = self.first_norm_x(x_embed)
-        y_embed = self.first_norm_y(y_embed)
+        # x_embed = self.first_norm_x(x_embed)
+        # y_embed = self.first_norm_y(y_embed)
         
-        res_x, res_y = x_embed, y_embed
+        # res_x, res_y = x_embed, y_embed
         
-        x_embed = self.self_attn_x(x_embed, attention_mask)
-        y_embed = self.self_attn_y(y_embed, attention_mask)
+        # x_embed = self.self_attn_x(x_embed, attention_mask)
+        # y_embed = self.self_attn_y(y_embed, attention_mask)
         
-        x_embed = res_x + x_embed
-        y_embed = res_y + y_embed
+        # x_embed = res_x + x_embed
+        # y_embed = res_y + y_embed
         
         x_embed = self.self_attn_x_layer_norm(x_embed)
         y_embed = self.self_attn_y_layer_norm(y_embed)
@@ -59,8 +59,8 @@ class KeypointsEncoderLayer(nn.Module):
         x_embed = self.ffn_x(x_embed)
         y_embed = self.ffn_y(y_embed)
         
-        x_embed = self.cross_attn(x_embed, y_embed, attention_mask)
-        y_embed = self.cross_attn(y_embed, x_embed, attention_mask)
+        x_embed = self.cross_attn_x(x_embed, y_embed, attention_mask)
+        y_embed = self.cross_attn_y(y_embed, x_embed, attention_mask)
 
         if x_embed.dtype == torch.float16 and (
             torch.isinf(x_embed).any() or torch.isnan(x_embed).any()
