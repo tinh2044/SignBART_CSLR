@@ -19,12 +19,12 @@ from dataset import SLR_Dataset
 from model import SignLanguageModel
 
 from opt import train_one_epoch, evaluate_fn
-
+from torchviz import make_dot
 import utils
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Visual-Language-Pretraining (VLP) V2 scripts', add_help=False)
-    parser.add_argument('--batch-size', default=8, type=int)
+    parser.add_argument('--batch-size', default=2, type=int)
     parser.add_argument('--epochs', default=100, type=int)
 
     parser.add_argument('--finetune', default='', help='finetune from checkpoint')
@@ -98,6 +98,7 @@ def main(args, cfg):
     model = model.to(device)
     n_parameters = utils.count_model_parameters(model)
     print(model)
+    # torch.save(model.state_dict(), 'model.pth')
     print(f"Number of parameters: {n_parameters}")
 
     if args.finetune:
@@ -154,6 +155,7 @@ def main(args, cfg):
                 'scheduler': scheduler.state_dict(),
                 'epoch': epoch,
             }, checkpoint_path)
+        print()
         test_results = evaluate_fn(args, config, dev_dataloader, model, gloss_tokenizer, epoch,
                               beam_size=config['training']['validation']['recognition']['beam_size'],
                               generate_cfg=config['training']['validation']['translation'],
@@ -188,7 +190,7 @@ def main(args, cfg):
                      **{f'test_{k}': v for k, v in test_results.items()},
                      'epoch': epoch,
                      'n_parameters': n_parameters}
-
+        print()
         with (output_dir / "log.txt").open("a") as f:
             f.write(json.dumps(log_results) + "\n")
 

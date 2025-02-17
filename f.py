@@ -1,23 +1,13 @@
-import cv2
-import mediapipe as mp
+import yaml
 
-# Initialize MediaPipe Face Mesh
-mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, refine_landmarks=True)
+from torchviz import make_dot
+from model import SignLanguageModel
+from Tokenizer import GlossTokenizer
 
-# Initialize MediaPipe Drawing Utils
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
+cfg_path = "configs/phoenix-2014t.yaml"
 
-
-con = list(mp_face_mesh.FACEMESH_CONTOURS)
-
-
-c = []
-
-for i in con:
-    for j in i:
-        c.append(j)
-
-c = sorted(list(set(c)))
-print(len(c))
+with open(cfg_path, 'r+', encoding='utf-8') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+        
+        
+gloss_tokenizer = GlossTokenizer(config['gloss_tokenizer'])

@@ -36,8 +36,8 @@ class KeypointsEncoderLayer(nn.Module):
         
         self.pos_emb = StaticPositionalEncoding(out_dim)
     
-    def forward(self, keypoints, attention_mask):
-        x_embed, y_embed = self.coordinate_mapping(keypoints)
+    def forward(self, x_coord, y_coord, attention_mask):
+        x_embed, y_embed = self.coordinate_mapping(x_coord, y_coord)
         
         x_embed = self.pos_emb(x_embed)
         y_embed = self.pos_emb(y_embed)
@@ -56,9 +56,8 @@ class KeypointsEncoderLayer(nn.Module):
         x_embed = self.self_attn_x_layer_norm(x_embed)
         y_embed = self.self_attn_y_layer_norm(y_embed)
         
-        res_x, res_y = x_embed, y_embed
-        x_embed = self.ffn_x(x_embed + res_x)
-        y_embed = self.ffn_y(y_embed+ res_y)
+        x_embed = self.ffn_x(x_embed)
+        y_embed = self.ffn_y(y_embed)
         
         x_embed = self.cross_attn(x_embed, y_embed, attention_mask)
         y_embed = self.cross_attn(y_embed, x_embed, attention_mask)
@@ -75,9 +74,8 @@ class KeypointsEncoderLayer(nn.Module):
             clamp_value = torch.finfo(y_embed.dtype).max - 1000
             y_embed = torch.clamp(y_embed, min=-clamp_value, max=clamp_value)
 
-        keypoint_embed = torch.stack((x_embed, y_embed), dim=-1)
-        
-        return keypoint_embed
+    
+        return x_embed, y_embed
     
 class KeypointsEncoder(nn.Module):
     def __init__(self, joint_idx, net):
@@ -92,22 +90,24 @@ class KeypointsEncoder(nn.Module):
         
         self.layers = nn.ModuleList(self.layers)
 
-        
+        self.cross_attention = CrossAttention(net[-1][0], attention_heads, dropout=0.2)
     
     def forward(self, keypoints, attention_mask):
         
         attention_mask = create_attention_mask(attention_mask, keypoints.dtype)
-        x_embed, y_embed = self.coordinate_mapping(keypoints)
-        keypoints = torch.stack((x_embed, y_embed), dim=-1)
-        for encoder_layer in self.layers:
-            keypoints = encoder_layer(keypoints, attention_mask)
         
-        return keypoints
+        x_embed, y_embed = self.coordinate_mapping(keypoints[:, :, :, 0], keypoints[:, :, :, 1])
+        for encoder_layer in self.layers:
+            x_embed, y_embed = encoder_layer(x_embed, y_embed, attention_mask)
+        
+        x = self.cross_attention(x_embed, y_embed, attention_mask)
+        
+        return x
 
 class RecognitionNetwork(nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        # self.joint_idx = cfg['joint_idx']
+        self.cfg = cfg
         self.cross_distillation = cfg['cross_distillation']
     
         self.body_encoder = KeypointsEncoder(cfg['body_idx'], cfg['net'])
@@ -127,10 +127,10 @@ class RecognitionNetwork(nn.Module):
         keypoints = src_input['keypoints']
         mask = src_input['mask']
         
-        body_embed = self.body_encoder(keypoints, mask)
-        left_embed = self.left_encoder(keypoints, mask)
-        rigt_embed = self.right_encoder(keypoints, mask)
-        face_embed = self.face_encoder(keypoints, mask)
+        body_embed = self.body_encoder(keypoints[:, :, self.cfg['body_idx'], :], mask)
+        left_embed = self.left_encoder(keypoints[:, :, self.cfg['left_idx'], :], mask)
+        rigt_embed = self.right_encoder(keypoints[:, :, self.cfg['right_idx'], :], mask)
+        face_embed = self.face_encoder(keypoints[:, :, self.cfg['face_idx'], :], mask)
         fuse = torch.cat([body_embed, left_embed, rigt_embed, face_embed], dim=-1)        
         
         # decoder_outputs = self.visual_head(keypoints, mask)

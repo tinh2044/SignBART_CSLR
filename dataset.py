@@ -91,12 +91,13 @@ class SLR_Dataset(Dataset.Dataset):
 
         gloss_output = self.gloss_tokenizer.batch_encode(gloss_batch, return_length=True)
         
-        valid_len_in =  length_keypoints_batch // 4 
+        new_src_lengths = (((length_keypoints_batch - 1) / 2)).long()
+        new_src_lengths = (((new_src_lengths - 1) / 2)).long()
         
         src_input = {
             "name": name_batch,
             "keypoints": keypoints_batch,
-            "valid_len_in": valid_len_in,
+            "valid_len_in": new_src_lengths,
             "mask": attention_mask,
             
             "gloss_labels": gloss_output['input_ids'],

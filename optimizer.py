@@ -35,6 +35,7 @@ def build_optimizer(config, model) :
     eps = config.get("eps", 1.0e-8)
     parameters = []
     base_lr = config['learning_rate'].pop('default')
+    base_lr = float(base_lr)
     for n, p in model.named_children():
         lr_ = base_lr
         for m, lr in config['learning_rate'].items():
@@ -44,7 +45,6 @@ def build_optimizer(config, model) :
 
     betas = config.get("betas", (0.9, 0.999))
     amsgrad = config.get("amsgrad", False)
-    base_lr = float(base_lr)
     if optimizer_name == "adam":
         return torch.optim.Adam(
             params=parameters,

@@ -56,16 +56,6 @@ class FeedForwardLayer(nn.Module):
         x = self.final_layer_norm(x)
         return x
 
-    def __init__(self, input_dim, num_classes, dropout):
-        super().__init__()
-        self.dropout = nn.Dropout(p=dropout)
-        self.out_proj = nn.Linear(input_dim, num_classes)
-
-    def forward(self, x):
-        x = self.dropout(x)
-        logits = self.out_proj(x)
-        return logits
-
 class CoordinateMapping(nn.Module):
     def __init__(self, in_feat, out_feat):
         super(CoordinateMapping, self).__init__()
@@ -73,9 +63,7 @@ class CoordinateMapping(nn.Module):
         self.mapping_x = nn.Linear(in_feat, out_feat)
         self.mapping_y = nn.Linear(in_feat, out_feat)
 
-    def forward(self, inputs):
-        x_coord = inputs[:, :, :, 0]
-        y_coord = inputs[:, :, :, 1]
+    def forward(self, x_coord, y_coord):
         
         x_embed = self.mapping_x(x_coord)       
 
@@ -84,4 +72,10 @@ class CoordinateMapping(nn.Module):
         return x_embed, y_embed
     
 
-# class Fuse
+if __name__ == '__main__':
+    c = CoordinateMapping(256, 512)
+    x = torch.randn(2, 180, 2, 256)
+    # y = torch.randn(2, 180, 256)
+    
+    x_embed, y_embed = c(x[..., 0], x[..., 1])
+    print(x_embed.shape, y_embed.shape)
