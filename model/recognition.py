@@ -1,23 +1,122 @@
 import torch
 from torch import nn
 import torch.utils.checkpoint
-from .encoder import Encoder
-from .decoder import Decoder
-from .layers import Projection
-from .visual_head import VisualHead
+# from .encoder import Encoder
+# from .decoder import Decoder
+from model.attention import CrossAttention, SelfAttention
+from model.layers import CoordinateMapping, FeedForwardLayer
+from model.visual_head import VisualHead
+from model.layers import StaticPositionalEncoding
+from model.utils import create_attention_mask
+
+class KeypointsEncoderLayer(nn.Module):
+    def __init__(self, joint_idx, in_dim, out_dim, ff_dim, attention_heads, dropout=0.2):
+        super().__init__()
+        
+        self.joint_idx = joint_idx
+        self.coordinate_mapping = CoordinateMapping(in_dim, out_dim)
+        
+        self.first_norm_x = nn.LayerNorm(out_dim)
+        self.first_norm_y = nn.LayerNorm(out_dim)
+        
+        self.self_attn_x = SelfAttention(out_dim, attention_heads, dropout)
+        self.self_attn_y = SelfAttention(out_dim, attention_heads, dropout)
+        
+        self.cross_attn = CrossAttention(out_dim, attention_heads, dropout)
+        
+        
+        self.ffn_x = FeedForwardLayer(out_dim, ff_dim, dropout)
+        self.ffn_y = FeedForwardLayer(out_dim, ff_dim, dropout)
+        self.ffn_cross = FeedForwardLayer(out_dim, ff_dim, dropout)
+        
+        self.self_attn_x_layer_norm = nn.LayerNorm(out_dim)
+        self.self_attn_y_layer_norm = nn.LayerNorm(out_dim)
+        self.cross_attn_layer_norm = nn.LayerNorm(out_dim)
+        self.ffn_layer_norm = nn.LayerNorm(out_dim)
+        
+        self.pos_emb = StaticPositionalEncoding(out_dim)
+    
+    def forward(self, keypoints, attention_mask):
+        x_embed, y_embed = self.coordinate_mapping(keypoints)
+        
+        x_embed = self.pos_emb(x_embed)
+        y_embed = self.pos_emb(y_embed)
+        
+        x_embed = self.first_norm_x(x_embed)
+        y_embed = self.first_norm_y(y_embed)
+        
+        res_x, res_y = x_embed, y_embed
+        
+        x_embed = self.self_attn_x(x_embed, attention_mask)
+        y_embed = self.self_attn_y(y_embed, attention_mask)
+        
+        x_embed = res_x + x_embed
+        y_embed = res_y + y_embed
+        
+        x_embed = self.self_attn_x_layer_norm(x_embed)
+        y_embed = self.self_attn_y_layer_norm(y_embed)
+        
+        res_x, res_y = x_embed, y_embed
+        x_embed = self.ffn_x(x_embed + res_x)
+        y_embed = self.ffn_y(y_embed+ res_y)
+        
+        x_embed = self.cross_attn(x_embed, y_embed, attention_mask)
+        y_embed = self.cross_attn(y_embed, x_embed, attention_mask)
+
+        if x_embed.dtype == torch.float16 and (
+            torch.isinf(x_embed).any() or torch.isnan(x_embed).any()
+        ):
+            clamp_value = torch.finfo(x_embed.dtype).max - 1000
+            x_embed = torch.clamp(x_embed, min=-clamp_value, max=clamp_value)
+            
+        if y_embed.dtype == torch.float16 and (
+            torch.isinf(y_embed).any() or torch.isnan(y_embed).any()
+        ):
+            clamp_value = torch.finfo(y_embed.dtype).max - 1000
+            y_embed = torch.clamp(y_embed, min=-clamp_value, max=clamp_value)
+
+        keypoint_embed = torch.stack((x_embed, y_embed), dim=-1)
+        
+        return keypoint_embed
+    
+class KeypointsEncoder(nn.Module):
+    def __init__(self, joint_idx, net):
+        super().__init__()
+        
+        self.coordinate_mapping = CoordinateMapping(len(joint_idx), net[0][0])
+        
+        self.layers = []
+        
+        for i, (in_dim, out_dim, ff_dim, attention_heads) in enumerate(net):
+            self.layers.append(KeypointsEncoderLayer(joint_idx, in_dim, out_dim, ff_dim, attention_heads, dropout=i*0.05))
+        
+        self.layers = nn.ModuleList(self.layers)
+
+        
+    
+    def forward(self, keypoints, attention_mask):
+        
+        attention_mask = create_attention_mask(attention_mask, keypoints.dtype)
+        x_embed, y_embed = self.coordinate_mapping(keypoints)
+        keypoints = torch.stack((x_embed, y_embed), dim=-1)
+        for encoder_layer in self.layers:
+            keypoints = encoder_layer(keypoints, attention_mask)
+        
+        return keypoints
 
 class RecognitionNetwork(nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        self.joint_idx = cfg['joint_idx']
+        # self.joint_idx = cfg['joint_idx']
         self.cross_distillation = cfg['cross_distillation']
-
-        self.encoder = Encoder(cfg)
-        self.decoder = Decoder(cfg)
+    
+        self.body_encoder = KeypointsEncoder(cfg['body_idx'], cfg['net'])
+        self.left_encoder = KeypointsEncoder(cfg['left_idx'], cfg['net'])
+        self.right_encoder = KeypointsEncoder(cfg['right_idx'], cfg['net'])
+        self.face_encoder = KeypointsEncoder(cfg['face_idx'], cfg['net'])
         
         self.visual_head = VisualHead(**cfg['visual_head'], cls_num=cfg['num_labels'])
         
-        self.projection = Projection(cfg)
         self.loss_fn = nn.CTCLoss(
             blank=0,
             zero_infinity=True,
@@ -28,23 +127,17 @@ class RecognitionNetwork(nn.Module):
         keypoints = src_input['keypoints']
         mask = src_input['mask']
         
+        body_embed = self.body_encoder(keypoints, mask)
+        left_embed = self.left_encoder(keypoints, mask)
+        rigt_embed = self.right_encoder(keypoints, mask)
+        face_embed = self.face_encoder(keypoints, mask)
+        fuse = torch.cat([body_embed, left_embed, rigt_embed, face_embed], dim=-1)        
         
-        b = keypoints.shape[0]
-        keypoints = keypoints[:, :, self.joint_idx, :]
-        x_embed, y_embed = self.projection(keypoints)
+        # decoder_outputs = self.visual_head(keypoints, mask)
 
-        encoder_outputs = self.encoder(x_embed=x_embed, attention_mask=mask)
-
-        decoder_outputs = self.decoder(
-            encoder_hidden_states=encoder_outputs,
-            encoder_attention_mask=mask,
-            attention_mask=mask,
-            y_embed=y_embed)
-
+        valid_len_in = src_input['valid_len_in']
         
-        # last_indices = (attention_mask == 1).float().cumsum(dim=1).argmax(dim=1)
-
-        head_outputs = self.visual_head(decoder_outputs, mask)        
+        head_outputs = self.visual_head(fuse, mask, valid_len_in=valid_len_in)        
         
         head_outputs['last_gloss_logits'] = head_outputs['gloss_probabilities'].log()
         head_outputs['last_gloss_probabilities_log'] =  head_outputs['last_gloss_logits'].log_softmax(2)
@@ -53,14 +146,14 @@ class RecognitionNetwork(nn.Module):
         
         outputs = {
             **head_outputs,
-            'input_lengths': src_input['length_keypoints']
+            'valid_len_in': src_input['valid_len_in']
             
         }
         outputs['recognition_loss'] = self.compute_loss(
             gloss_labels = src_input['gloss_labels'],
             gloss_lengths = src_input['gloss_length'],
             gloss_probabilities_log = head_outputs['last_gloss_probabilities_log'],
-            input_lengths = src_input['length_keypoints']
+            input_lengths = src_input['valid_len_in']
         )
         if self.cross_distillation:
             loss_func = torch.nn.KLDivLoss(reduction="batchmean")

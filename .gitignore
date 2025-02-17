@@ -4,3 +4,4 @@ notebooks/
 .history/
 __pycache__/
 model/__pycache__/
+.vscode/

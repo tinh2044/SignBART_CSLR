@@ -90,11 +90,13 @@ class SLR_Dataset(Dataset.Dataset):
             attention_mask[i, :length_keypoints_batch[i]] = 1
 
         gloss_output = self.gloss_tokenizer.batch_encode(gloss_batch, return_length=True)
-            
+        
+        valid_len_in =  length_keypoints_batch // 4 
+        
         src_input = {
             "name": name_batch,
             "keypoints": keypoints_batch,
-            "length_keypoints": length_keypoints_batch,
+            "valid_len_in": valid_len_in,
             "mask": attention_mask,
             
             "gloss_labels": gloss_output['input_ids'],

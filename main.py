@@ -58,7 +58,7 @@ def main(args, cfg):
     # seed = args.seed
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
-    utils.init_distributed_mode()
+    utils.init_distributed_mode(args)
     
     seed = args.seed + utils.get_rank()
     # Set seed
@@ -146,7 +146,7 @@ def main(args, cfg):
     for epoch in range(args.start_epoch, args.epochs):
         train_results = train_one_epoch(args, model, train_dataloader, optimizer, epoch, print_freq=args.print_freq)
         scheduler.step()
-        checkpoint_paths = [output_dir / f'checkpoint.pth']
+        checkpoint_paths = [output_dir / f'checkpoint_{epoch}.pth']
         for checkpoint_path in checkpoint_paths:
            utils.save_on_master({
                 'model': model.state_dict(),

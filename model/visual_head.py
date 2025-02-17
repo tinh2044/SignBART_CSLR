@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .model_utils import PositionalEncoding, MaskedNorm, PositionWiseFeedForward, MLPHead
+from model.model_utils import PositionalEncoding, MaskedNorm, PositionWiseFeedForward, MLPHead
 
 
 class VisualHead(torch.nn.Module):

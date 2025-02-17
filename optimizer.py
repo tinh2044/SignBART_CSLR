@@ -9,7 +9,6 @@ from torch.optim.lr_scheduler import _LRScheduler
 from torch.optim import Optimizer
 
 
-
 def build_gradient_clipper(config):
     clip_grad_fun = None
     if "clip_grad_val" in config.keys():
@@ -45,7 +44,7 @@ def build_optimizer(config, model) :
 
     betas = config.get("betas", (0.9, 0.999))
     amsgrad = config.get("amsgrad", False)
-
+    base_lr = float(base_lr)
     if optimizer_name == "adam":
         return torch.optim.Adam(
             params=parameters,

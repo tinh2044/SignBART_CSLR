@@ -1,29 +1,23 @@
-batch_size = 8
-epochs = 100
-finetune = ""
-device = "cpu"
-seed = 0
-resume = ""
-start_epoch = 0
-test_on_last_epoch = "False"
-num_workers = 0
-pin_mem = "--pin-mem"
-cfg_path = "configs/phoenix-2014t.yaml"
+import cv2
+import mediapipe as mp
 
-# Construct the Python command as a string
-command_str = (
-    f"python -m main "
-    f"--batch-size {batch_size} "
-    f"--epochs {epochs} "
-    f"--finetune {finetune} "
-    f"--device {device} "
-    f"--seed {seed} "
-    f"--resume {resume} "
-    f"--start_epoch {start_epoch} "
-    f"--eval "
-    f"--test_on_last_epoch {test_on_last_epoch} "
-    f"--num_workers {num_workers} "
-    f"{pin_mem} "
-    f"--cfg_path {cfg_path}"
-)
-print(command_str)
+# Initialize MediaPipe Face Mesh
+mp_face_mesh = mp.solutions.face_mesh
+face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, refine_landmarks=True)
+
+# Initialize MediaPipe Drawing Utils
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
+
+
+con = list(mp_face_mesh.FACEMESH_CONTOURS)
+
+
+c = []
+
+for i in con:
+    for j in i:
+        c.append(j)
+
+c = sorted(list(set(c)))
+print(len(c))

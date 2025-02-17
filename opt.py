@@ -69,8 +69,8 @@ def evaluate_fn(args, config, dataloader, model, tokenizer, epoch, beam_size=1, 
                 for name, txt_hyp, txt_ref in zip(src_input['name'], generate_output['decoded_sequences'],
                                                   src_input['text']):
                     results[name]['txt_hyp'], results[name]['txt_ref'] = txt_hyp, txt_ref
-            # metric_logger.update(loss=output['total_loss'].item())
-            metric_logger.update(loss=0.0)
+            metric_logger.update(loss=output['total_loss'].item())
+            # metric_logger.update(loss=0.0)
             
         if do_recognition:
             evaluation_results = {}

@@ -64,7 +64,7 @@ class Encoder(nn.Module):
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
     def forward(self, x_embed, attention_mask):
-
+        
         x_embed = self.embed_positions(x_embed)
 
         hidden_states = self.layernorm_embedding(x_embed)
