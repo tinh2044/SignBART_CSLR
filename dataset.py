@@ -101,7 +101,7 @@ class SLR_Dataset(Dataset.Dataset):
             "mask": attention_mask,
             
             "gloss_labels": gloss_output['input_ids'],
-            "gloss_length": gloss_output['length'],
+            "gloss_lengths": gloss_output['length'],
             "gloss_input": gloss_batch,
             "text_input": text_batch
         }

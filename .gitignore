@@ -6,3 +6,4 @@ __pycache__/
 model/__pycache__/
 .vscode/
 /t.py
+/f.py

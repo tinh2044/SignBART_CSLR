@@ -45,23 +45,18 @@ def evaluate_fn(args, config, dataloader, model, tokenizer, epoch, beam_size=1, 
         for _, (src_input) in enumerate(metric_logger.log_every(dataloader, print_freq, header)):
             output = model(src_input)
             if do_recognition:
-                logits = output['gloss_logits']
-                ctc_decode_output = ctc_decode(gloss_logits=logits, 
+                for k, gls_logits in output.items():
+                    if not 'gloss_logits' in k:
+                        continue
+                    logits_name = k.replace('gloss_logits', '')
+                    ctc_decode_output = ctc_decode(gloss_logits=gls_logits, 
                                                beam_size=beam_size,
-                                                input_lengths=output['valid_len_in'])
-                # # print(ctc_decode_output)
-                
-                batch_pred_gls = tokenizer.batch_decode(ctc_decode_output)
-                # print(batch_pred_gls)
-                lower_case = tokenizer.lower_case
-                for name, gls_hyp, gls_ref in zip(src_input['name'], batch_pred_gls, src_input['gloss_input']):
-                    gls_hyp = gls_hyp.upper() if lower_case else gls_hyp
-                    # gls_hyp = ' '.join(gls_hyp).upper() if lower_case else ' '.join(gls_hyp)
-                    gls_ref = gls_ref.upper() if tokenizer.lower_case \
-                        else gls_ref
-                    results[name]['gls_hyp'] = gls_hyp
-                    results[name]['gls_ref'] = gls_ref
-                    
+                                                input_lengths=output['input_lengths'])
+                    batch_pred_gls = tokenizer.batch_decode(ctc_decode_output)
+                    lower_case = tokenizer.lower_case
+                    for name, gls_hyp, gls_ref in zip(src_input['name'], batch_pred_gls, src_input['gloss_input']):
+                        results[name][f'{logits_name}_gls_hyp'] = gls_ref.upper() if lower_case else gls_ref
+                        results[name]['gls_ref'] = gls_ref.upper() if lower_case else gls_ref            
             if do_translation:
                 generate_output = model.generate_txt(
                     transformer_inputs=output['transformer_inputs'],
@@ -70,25 +65,19 @@ def evaluate_fn(args, config, dataloader, model, tokenizer, epoch, beam_size=1, 
                                                   src_input['text']):
                     results[name]['txt_hyp'], results[name]['txt_ref'] = txt_hyp, txt_ref
             metric_logger.update(loss=output['total_loss'].item())
-            # metric_logger.update(loss=0.0)
             
         if do_recognition:
             evaluation_results = {}
             evaluation_results['wer'] = 200
-            
-            if config['data']['dataset_name'].lower() == 'phoenix-2014t':
+            for hyp_name in results[name].keys():
+                if not 'gls_hyp' in hyp_name:
+                    continue
+                k = hyp_name.replace('gls_hyp', '')
                 gls_ref = [results[n]['gls_ref'] for n in results]
-                gls_hyp = [results[n]["gls_hyp"] for n in results]
-            elif config['data']['dataset_name'].lower() == 'phoenix-2014':
-                gls_ref = [results[n]['gls_ref'] for n in results]
-                gls_hyp = [results[n]["gls_hyp"] for n in results]
-            elif config['data']['dataset_name'].lower() == 'csl-daily':
-                gls_ref = [results[n]['gls_ref'] for n in results]
-                gls_hyp = [results[n]["gls_hyp"] for n in results]
-    
-            wer_results = wer_list(hypotheses=gls_hyp, references=gls_ref)
-            evaluation_results['wer_list'] = wer_results
-            evaluation_results['wer'] = min(wer_results['wer'], evaluation_results['wer'])
+                gls_hyp = [results[n][hyp_name] for n in results]
+                wer_results = wer_list(hypotheses=gls_hyp, references=gls_ref)
+                evaluation_results[k + 'wer_list'] = wer_results
+                evaluation_results['wer'] = min(wer_results['wer'], evaluation_results['wer'])
             metric_logger.update(wer=evaluation_results['wer'])
 
         if do_translation:

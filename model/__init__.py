@@ -13,12 +13,12 @@ class SignLanguageModel(torch.nn.Module):
         model_cfg = cfg['model']
         if self.task == 'S2G':
             self.text_tokenizer = None
-            self.recognition_network = RecognitionNetwork(cfg=model_cfg['RecognitionNetwork'])
+            self.recognition_network = RecognitionNetwork(cfg=model_cfg['RecognitionNetwork'], gloss_tokenizer=gloss_tokenizer)
             self.gloss_tokenizer = gloss_tokenizer
         elif self.task == 'S2T':
             self.recognition_weight = model_cfg.get('recognition_weight', 1)
             self.translation_weight = model_cfg.get('translation_weight', 1)
-            self.recognition_network = RecognitionNetwork(cfg=model_cfg['RecognitionNetwork'])
+            self.recognition_network = RecognitionNetwork(cfg=model_cfg['RecognitionNetwork'], gloss_tokenizer=gloss_tokenizer)
             # self.translation_network = Tran   slationNetwork(cfg=model_cfg['TranslationNetwork'])
             self.gloss_tokenizer = gloss_tokenizer
             self.text_tokenizer = self.translation_network.text_tokenizer

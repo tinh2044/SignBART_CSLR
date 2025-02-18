@@ -209,7 +209,7 @@ training:
   optimization:
     optimizer: Adam
     learning_rate:
-      default: 2e-4
+      default: 1e-4
     weight_decay: 0.001
     betas:
       - 0.9
@@ -411,18 +411,36 @@ model:
       ]
 
     max_position_embeddings: 512
-    visual_head:
-      input_size: 1024
-      hidden_size: 1024
+    body_visual_head:
+      input_size: 256
+      hidden_size: 512
       ff_size: 2048
       pe: True
       ff_kernelsize:
         - 3
         - 3
-
-      plus_conv_cfg:
-        kernel_size: 3
-        stride: 2
-        num_layer: 2
-
+    fuse_visual_head:
+      input_size: 1024
+      hidden_size: 512
+      ff_size: 2048
+      pe: True
+      ff_kernelsize:
+        - 3
+        - 3
+    left_visual_head:
+      input_size: 512
+      hidden_size: 512
+      ff_size: 2048
+      pe: True
+      ff_kernelsize:
+        - 3
+        - 3
+    right_visual_head:
+      input_size: 512
+      hidden_size: 512
+      ff_size: 2048
+      pe: True
+      ff_kernelsize:
+        - 3
+        - 3
     cross_distillation: True
