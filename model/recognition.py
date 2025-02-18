@@ -160,11 +160,12 @@ class RecognitionNetwork(nn.Module):
         right_ouput = torch.cat([right_embed, face_embed], dim=-1)
 
         valid_len_in = src_input['valid_len_in']
+        mask_head = src_input['mask_head']
         
-        body_head = self.body_visual_head(body_embed, mask, valid_len_in)  
-        left_head = self.left_visual_head(left_ouput, mask, valid_len_in)  
-        right_head = self.right_visual_head(right_ouput, mask, valid_len_in)  
-        fuse_head = self.fuse_visual_head(fuse_ouput, mask, valid_len_in)
+        body_head = self.body_visual_head(body_embed, mask_head, valid_len_in)  
+        left_head = self.left_visual_head(left_ouput, mask_head, valid_len_in)  
+        right_head = self.right_visual_head(right_ouput, mask_head, valid_len_in)  
+        fuse_head = self.fuse_visual_head(fuse_ouput, mask_head, valid_len_in)
         
         head_outputs = {'ensemble_last_gloss_logits': (left_head['gloss_probabilities'] + right_head['gloss_probabilities'] +
                                                            body_head['gloss_probabilities']+fuse_head['gloss_probabilities']).log(),
