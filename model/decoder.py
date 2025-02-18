@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from .attention import CrossAttention, CausalSelfAttention
-from .layers import PositionalEmbedding
-from .utils import create_attention_mask, create_causal_attention_mask
+from model.attention import CrossAttention, CausalSelfAttention
+from model.layers import LearningPositionEmbedding
+from model.utils import create_attention_mask, create_causal_attention_mask
 
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, attention_heads, ff_dim):
@@ -26,7 +26,7 @@ class DecoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.d_model)
         
     def forward(self, hidden_states, encoder_hidden_states, encoder_attention_mask):
-        
+        residual = hidden_states
         hidden_states  = self.encoder_attn(hidden_states, encoder_hidden_states, encoder_attention_mask)
         
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
@@ -52,7 +52,7 @@ class Decoder(nn.Module):
         self.layerdrop = config['decoder_layerdrop'] 
         embed_dim = config['d_model']
         
-        self.embed_positions = PositionalEmbedding(
+        self.embed_positions = LearningPositionEmbedding(
             config['max_position_embeddings'],
             embed_dim,
         )

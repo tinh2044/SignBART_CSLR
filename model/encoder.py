@@ -5,10 +5,9 @@ from model.layers import LearningPositionEmbedding
 from  model.utils import create_attention_mask
 
 class EncoderLayer(nn.Module):
-    def __init__(self, d_model, attention_heads, ffn_dim, config):
+    def __init__(self, d_model, attention_heads, ffn_dim):
         super().__init__()
-        self.d_model = config['d_model']
-
+        self.d_model = d_model
         self.self_attn = SelfAttention(
             d_model=self.d_model,
             num_heads=attention_heads,

@@ -24,14 +24,11 @@ class KeypointsEncoderLayer(nn.Module):
         self.self_attn_x = EncoderLayer(out_dim, attention_heads, ff_dim)
         self.self_attn_y = EncoderLayer(out_dim, attention_heads, ff_dim)
         
-        self.cross_attn_x = DecoderLayer(out_dim, attention_heads, dropout)
-        self.cross_attn_y = DecoderLayer(out_dim, attention_heads, dropout)
-        
-        self.ffn_x = FeedForwardLayer(out_dim, ff_dim, dropout)
-        self.ffn_y = FeedForwardLayer(out_dim, ff_dim, dropout)
-        self.ffn_cross = FeedForwardLayer(out_dim, ff_dim, dropout)
+        self.cross_attn_x = DecoderLayer(out_dim, attention_heads, ff_dim)
+        self.cross_attn_y = DecoderLayer(out_dim, attention_heads, ff_dim)
         
         self.pos_emb = StaticPositionalEncoding(out_dim)
+    
         
     
     def forward(self, x_coord, y_coord, attention_mask):
