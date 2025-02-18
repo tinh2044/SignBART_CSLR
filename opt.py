@@ -21,7 +21,11 @@ def train_one_epoch(args, model, data_loader, optimizer, epoch, print_freq= 1):
         loss = output['total_loss']
         loss_value = loss.item()
         with torch.autograd.set_detect_anomaly(True):
+            if torch.isnan(loss) or torch.isinf(loss):
+                # print("⚠️ Loss có giá trị NaN hoặc Inf!")
+                raise ValueError("NaN loss")
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         model.zero_grad()
         if not math.isfinite(loss):
