@@ -15,15 +15,6 @@ class KeypointsEncoderLayer(nn.Module):
         
         self.joint_idx = joint_idx
         
-        if out_dim != in_dim:
-            self.conv_x = nn.Conv1d(in_dim, out_dim, kernel_size=3, stride=2)
-            self.conv_y = nn.Conv1d(in_dim, out_dim, kernel_size=3, stride=2)
-            self.mask_mapping = nn.Conv2d(1, 1, kernel_size=(3, 3), stride=(2, 2))
-        else:
-            self.mask_mapping = nn.Identity()
-            self.conv_x = nn.Identity(  )
-            self.conv_y = nn.Identity()
-        
         self.coordinate_mapping = CoordinateMapping(out_dim, out_dim)
         
         self.first_norm_x = nn.LayerNorm(out_dim)
@@ -48,11 +39,6 @@ class KeypointsEncoderLayer(nn.Module):
         
     
     def forward(self, x_coord, y_coord, attention_mask):
-        
-        x_coord = self.conv_x(x_coord.permute(0, 2, 1))
-        y_coord = self.conv_y(y_coord.permute(0, 2, 1))
-        
-        attention_mask = self.mask_mapping(attention_mask)
         
         x_embed, y_embed = self.coordinate_mapping(x_coord.permute(0, 2, 1), y_coord.permute(0, 2, 1))
     
@@ -93,7 +79,7 @@ class KeypointsEncoderLayer(nn.Module):
             y_embed = torch.clamp(y_embed, min=-clamp_value, max=clamp_value)
 
     
-        return x_embed, y_embed, attention_mask
+        return x_embed, y_embed
     
 class KeypointsEncoder(nn.Module):
     def __init__(self, joint_idx, net):
@@ -110,19 +96,17 @@ class KeypointsEncoder(nn.Module):
 
         self.cross_attention = CrossAttention(net[-1][0], attention_heads, dropout=0.2)
     
-    def forward(self, keypoints, attention_mask, return_mask=False):
+    def forward(self, keypoints, attention_mask):
         
         attention_mask = create_attention_mask(attention_mask, keypoints.dtype)
         
         x_embed, y_embed = self.coordinate_mapping(keypoints[:, :, :, 0], keypoints[:, :, :, 1])
         for encoder_layer in self.layers:
-            x_embed, y_embed, attention_mask = encoder_layer(x_embed, y_embed, attention_mask)
+            x_embed, y_embed = encoder_layer(x_embed, y_embed)
         
         x = self.cross_attention(x_embed, y_embed, attention_mask)
-        if return_mask:
-            return x, attention_mask
-        else:
-            return x
+        
+        return x
 
 class RecognitionNetwork(nn.Module):
     def __init__(self, cfg, gloss_tokenizer):
@@ -153,19 +137,19 @@ class RecognitionNetwork(nn.Module):
         body_embed = self.body_encoder(keypoints[:, :, self.cfg['body_idx'], :], mask)
         left_embed = self.left_encoder(keypoints[:, :, self.cfg['left_idx'], :], mask)
         right_embed = self.right_encoder(keypoints[:, :, self.cfg['right_idx'], :], mask)
-        face_embed, mask = self.face_encoder(keypoints[:, :, self.cfg['face_idx'], :], mask,     return_mask=True)
+        face_embed = self.face_encoder(keypoints[:, :, self.cfg['face_idx'], :], mask)
         
-        fuse_ouput = torch.cat([body_embed, left_embed, right_embed, face_embed], dim=-1)        
+        fuse_ouput = torch.cat([left_embed, right_embed, body_embed, face_embed], dim=-1)        
         left_ouput = torch.cat([left_embed, face_embed], dim=-1)
         right_ouput = torch.cat([right_embed, face_embed], dim=-1)
 
         valid_len_in = src_input['valid_len_in']
-        mask_head = src_input['mask_head']
+        # mask_head = src_input['mask_head']
         
-        body_head = self.body_visual_head(body_embed, mask_head, valid_len_in)  
-        left_head = self.left_visual_head(left_ouput, mask_head, valid_len_in)  
-        right_head = self.right_visual_head(right_ouput, mask_head, valid_len_in)  
-        fuse_head = self.fuse_visual_head(fuse_ouput, mask_head, valid_len_in)
+        body_head = self.body_visual_head(body_embed, mask, valid_len_in)  
+        left_head = self.left_visual_head(left_ouput, mask, valid_len_in)  
+        right_head = self.right_visual_head(right_ouput, mask, valid_len_in)  
+        fuse_head = self.fuse_visual_head(fuse_ouput, mask, valid_len_in)
         
         head_outputs = {'ensemble_last_gloss_logits': (left_head['gloss_probabilities'] + right_head['gloss_probabilities'] +
                                                            body_head['gloss_probabilities']+fuse_head['gloss_probabilities']).log(),

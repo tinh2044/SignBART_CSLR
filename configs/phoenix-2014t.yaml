@@ -190,7 +190,7 @@ data:
       ],
     ]
   shuffle: True
-  normalize: True
+  normalize: False
 gloss_tokenizer:
   gloss2id_file: ./data/Phoenix-2014-T/gloss2ids.json
   split: " "

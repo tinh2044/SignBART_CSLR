@@ -128,13 +128,13 @@ def main(args, cfg):
         dev_stats = evaluate_fn(args, config, dev_dataloader, model, gloss_tokenizer, epoch=0, beam_size=5,
                               generate_cfg=config['training']['validation']['translation'],
                               do_translation=config['do_translation'], do_recognition=config['do_recognition'],
-                              print_freq=args.print_freq)
+                              print_freq=args.print_freq, results_path="./dev_results.json")
         print(f"Dev loss of the network on the {len(dev_dataloader)} test videos: {dev_stats['loss']:.3f}")
 
         test_stats = evaluate_fn(args, config, test_dataloader, model, gloss_tokenizer, epoch=0, beam_size=5,
                               generate_cfg=config['testing']['translation'],
                               do_translation=config['do_translation'], do_recognition=config['do_recognition'],
-                              print_freq=args.print_freq)
+                              print_freq=args.print_freq, results_path="./test_results.json")
         print(f"Test loss of the network on the {len(test_dataloader)} test videos: {test_stats['loss']:.3f}")
         return
 
@@ -201,12 +201,12 @@ def main(args, cfg):
         checkpoint = torch.load(str(output_dir) + '/best_checkpoint.pth', map_location='cpu')
         model.load_state_dict(checkpoint['model'], strict=True)
         dev_stats = evaluate_fn(args, config, dev_dataloader, model, gloss_tokenizer, epoch=0, beam_size=config['testing']['recognition']['beam_size'],
-                             generate_cfg=config['training']['validation']['translation'],
-                             do_translation=config['do_translation'], do_recognition=config['do_recognition'], print_freq=args.print_freq)
+                             generate_cfg=config['training']['validation']['translation'], do_translation=config['do_translation'], 
+                             do_recognition=config['do_recognition'], print_freq=args.print_freq, results_path="./dev_results.json")
         print(f"Dev loss of the network on the {len(dev_dataloader)} test videos: {dev_stats['loss']:.3f}")
         test_stats = evaluate_fn(args, config, test_dataloader, model, gloss_tokenizer, epoch=0, beam_size=config['testing']['recognition']['beam_size'],
                               generate_cfg=config['testing']['translation'],
-                              do_translation=config['do_translation'], do_recognition=config['do_recognition'], print_freq=args.print_freq)
+                              do_translation=config['do_translation'], do_recognition=config['do_recognition'], print_freq=args.print_freq, results_path="./test_results.json")
         print(f"Test loss of the network on the {len(test_dataloader)} test videos: {test_stats['loss']:.3f}")
         if config['do_recognition']:
             with (output_dir / "log.txt").open("a") as f:

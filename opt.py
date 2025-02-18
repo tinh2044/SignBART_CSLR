@@ -22,7 +22,6 @@ def train_one_epoch(args, model, data_loader, optimizer, epoch, print_freq= 1):
         loss_value = loss.item()
         with torch.autograd.set_detect_anomaly(True):
             if torch.isnan(loss) or torch.isinf(loss):
-                # print("⚠️ Loss có giá trị NaN hoặc Inf!")
                 raise ValueError("NaN loss")
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -38,7 +37,7 @@ def train_one_epoch(args, model, data_loader, optimizer, epoch, print_freq= 1):
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
 def evaluate_fn(args, config, dataloader, model, tokenizer, epoch, beam_size=1, generate_cfg={}, do_translation=False,
-             do_recognition=True, print_freq = 1):
+             do_recognition=True, print_freq = 1, results_path=None):
     model.eval()
     metric_logger = MetricLogger(delimiter="  ")
     header = f'Test epoch: [{epoch}/{args.epochs}]'
@@ -59,7 +58,7 @@ def evaluate_fn(args, config, dataloader, model, tokenizer, epoch, beam_size=1, 
                     batch_pred_gls = tokenizer.batch_decode(ctc_decode_output)
                     lower_case = tokenizer.lower_case
                     for name, gls_hyp, gls_ref in zip(src_input['name'], batch_pred_gls, src_input['gloss_input']):
-                        results[name][f'{logits_name}_gls_hyp'] = gls_ref.upper() if lower_case else gls_ref
+                        results[name][f'{logits_name}_gls_hyp'] = gls_hyp.upper() if lower_case else gls_hyp
                         results[name]['gls_ref'] = gls_ref.upper() if lower_case else gls_ref            
             if do_translation:
                 generate_output = model.generate_txt(
@@ -82,7 +81,12 @@ def evaluate_fn(args, config, dataloader, model, tokenizer, epoch, beam_size=1, 
                 wer_results = wer_list(hypotheses=gls_hyp, references=gls_ref)
                 evaluation_results[k + 'wer_list'] = wer_results
                 evaluation_results['wer'] = min(wer_results['wer'], evaluation_results['wer'])
+                
             metric_logger.update(wer=evaluation_results['wer'])
+        import json
+        if results_path is not None:
+            with open(results_path, "w") as f:
+                json.dump(results, f)
 
         if do_translation:
             txt_ref = [results[n]['txt_ref'] for n in results]
