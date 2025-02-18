@@ -8,39 +8,35 @@ from model.layers import CoordinateMapping, FeedForwardLayer
 from model.visual_head import VisualHead
 from model.layers import StaticPositionalEncoding
 from model.utils import create_attention_mask
-
+from model.encoder import EncoderLayer
+from model.decoder import DecoderLayer
 class KeypointsEncoderLayer(nn.Module):
     def __init__(self, joint_idx, in_dim, out_dim, ff_dim, attention_heads, dropout=0.2):
         super().__init__()
         
         self.joint_idx = joint_idx
         
-        self.coordinate_mapping = CoordinateMapping(out_dim, out_dim)
+        self.coordinate_mapping = CoordinateMapping(in_dim, out_dim)
         
         self.first_norm_x = nn.LayerNorm(out_dim)
         self.first_norm_y = nn.LayerNorm(out_dim)
         
-        self.self_attn_x = SelfAttention(out_dim, attention_heads, dropout)
-        self.self_attn_y = SelfAttention(out_dim, attention_heads, dropout)
+        self.self_attn_x = EncoderLayer(out_dim, attention_heads, ff_dim)
+        self.self_attn_y = EncoderLayer(out_dim, attention_heads, ff_dim)
         
-        self.cross_attn_x = CrossAttention(out_dim, attention_heads, dropout)
-        self.cross_attn_y = CrossAttention(out_dim, attention_heads, dropout)
+        self.cross_attn_x = DecoderLayer(out_dim, attention_heads, dropout)
+        self.cross_attn_y = DecoderLayer(out_dim, attention_heads, dropout)
         
         self.ffn_x = FeedForwardLayer(out_dim, ff_dim, dropout)
         self.ffn_y = FeedForwardLayer(out_dim, ff_dim, dropout)
         self.ffn_cross = FeedForwardLayer(out_dim, ff_dim, dropout)
-        
-        self.self_attn_x_layer_norm = nn.LayerNorm(out_dim)
-        self.self_attn_y_layer_norm = nn.LayerNorm(out_dim)
-        self.cross_attn_layer_norm = nn.LayerNorm(out_dim)
-        self.ffn_layer_norm = nn.LayerNorm(out_dim)
         
         self.pos_emb = StaticPositionalEncoding(out_dim)
         
     
     def forward(self, x_coord, y_coord, attention_mask):
         
-        x_embed, y_embed = self.coordinate_mapping(x_coord.permute(0, 2, 1), y_coord.permute(0, 2, 1))
+        x_embed, y_embed = self.coordinate_mapping(x_coord, y_coord)
     
         
         x_embed = self.pos_emb(x_embed)
@@ -49,19 +45,10 @@ class KeypointsEncoderLayer(nn.Module):
         x_embed = self.first_norm_x(x_embed)
         y_embed = self.first_norm_y(y_embed)
         
-        res_x, res_y = x_embed, y_embed
         
         x_embed = self.self_attn_x(x_embed, attention_mask)
         y_embed = self.self_attn_y(y_embed, attention_mask)
-        
-        x_embed = res_x + x_embed
-        y_embed = res_y + y_embed
-        
-        x_embed = self.self_attn_x_layer_norm(x_embed)
-        y_embed = self.self_attn_y_layer_norm(y_embed)
-        
-        x_embed = self.ffn_x(x_embed)
-        y_embed = self.ffn_y(y_embed)
+    
         
         x_embed = self.cross_attn_x(x_embed, y_embed, attention_mask)
         y_embed = self.cross_attn_y(y_embed, x_embed, attention_mask)
@@ -94,7 +81,7 @@ class KeypointsEncoder(nn.Module):
         
         self.layers = nn.ModuleList(self.layers)
 
-        self.cross_attention = CrossAttention(net[-1][0], attention_heads, dropout=0.2)
+        self.cross_attention = CrossAttention(net[-1][0], attention_heads, dropout=0.0)
     
     def forward(self, keypoints, attention_mask):
         
@@ -102,7 +89,7 @@ class KeypointsEncoder(nn.Module):
         
         x_embed, y_embed = self.coordinate_mapping(keypoints[:, :, :, 0], keypoints[:, :, :, 1])
         for encoder_layer in self.layers:
-            x_embed, y_embed = encoder_layer(x_embed, y_embed)
+            x_embed, y_embed = encoder_layer(x_embed, y_embed, attention_mask)
         
         x = self.cross_attention(x_embed, y_embed, attention_mask)
         
