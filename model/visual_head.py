@@ -40,7 +40,7 @@ class VisualHead(torch.nn.Module):
             if plus_conv_cfg!={}:
                 plus_convs = []
                 for i in range(plus_conv_cfg['num_layer']):
-                    plus_convs.append(nn.Conv1d(self.hidden_size, self.hidden_size, 
+                    plus_convs.append(nn.Conv1d(input_size, input_size, 
                         kernel_size=plus_conv_cfg['kernel_size'], stride=plus_conv_cfg['stride'], padding_mode='replicate'))
                 self.plus_conv = nn.Sequential(*plus_convs)
             else:
@@ -69,6 +69,9 @@ class VisualHead(torch.nn.Module):
         B, Tin, D = x.shape 
         if self.is_empty==False:
             if not self.frozen:
+                x = x.transpose(1,2)
+                x = self.plus_conv(x)
+                x = x.transpose(1,2)
                 #projection 1
                 x = self.fc1(x)
                 x = self.bn1(x, mask)
@@ -81,9 +84,7 @@ class VisualHead(torch.nn.Module):
                 x = self.feedforward(x)
                 x = self.layer_norm(x)
 
-                x = x.transpose(1,2)
-                x = self.plus_conv(x)
-                x = x.transpose(1,2)
+                
             else:
                 with torch.no_grad():
                     for ii, layer in enumerate(self.frozen_layers):
