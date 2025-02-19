@@ -70,7 +70,6 @@ class CoordinateMapping(nn.Module):
         y_embed = self.mapping_y(y_coord)        
         
         return x_embed, y_embed
-    
 
 if __name__ == '__main__':
     c = CoordinateMapping(256, 512)

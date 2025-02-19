@@ -5,13 +5,13 @@ from model.layers import LearningPositionEmbedding
 from model.utils import create_attention_mask, create_causal_attention_mask
 
 class DecoderLayer(nn.Module):
-    def __init__(self, d_model, attention_heads, ff_dim):
+    def __init__(self, d_model, attention_heads, ff_dim, dropout=0.2):
         super().__init__()
         self.d_model = d_model
         
-        self.dropout = 0.2
+        self.dropout = dropout
         self.activation_fn = nn.GELU()
-        self.activation_dropout = 0.2
+        self.activation_dropout = dropout
 
         self.self_attn_layer_norm = nn.LayerNorm(self.d_model)
         self.encoder_attn = CrossAttention(

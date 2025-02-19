@@ -5,7 +5,7 @@ from model.layers import LearningPositionEmbedding
 from  model.utils import create_attention_mask
 
 class EncoderLayer(nn.Module):
-    def __init__(self, d_model, attention_heads, ffn_dim):
+    def __init__(self, d_model, attention_heads, ffn_dim, dropout=0.2):
         super().__init__()
         self.d_model = d_model
         self.self_attn = SelfAttention(
@@ -14,9 +14,9 @@ class EncoderLayer(nn.Module):
             dropout=0.0,
         )
         self.self_attn_layer_norm = nn.LayerNorm(self.d_model)
-        self.dropout = 0.2
+        self.dropout = dropout
         self.activation_fn = nn.GELU()
-        self.activation_dropout = 0.2
+        self.activation_dropout = dropout
         self.fc1 = nn.Linear(self.d_model, ffn_dim)
         self.fc2 = nn.Linear(ffn_dim, self.d_model)
         self.final_layer_norm = nn.LayerNorm(self.d_model)

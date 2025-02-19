@@ -11,7 +11,7 @@ from model.utils import create_attention_mask
 from model.encoder import EncoderLayer
 from model.decoder import DecoderLayer
 class KeypointsEncoderLayer(nn.Module):
-    def __init__(self, joint_idx, in_dim, out_dim, ff_dim, attention_heads, dropout=0.2):
+    def __init__(self, joint_idx, in_dim, out_dim, ff_dim, attention_heads, dropout=0.1):
         super().__init__()
         
         self.joint_idx = joint_idx
@@ -21,11 +21,11 @@ class KeypointsEncoderLayer(nn.Module):
         self.first_norm_x = nn.LayerNorm(out_dim)
         self.first_norm_y = nn.LayerNorm(out_dim)
         
-        self.self_attn_x = EncoderLayer(out_dim, attention_heads, ff_dim)
-        self.self_attn_y = EncoderLayer(out_dim, attention_heads, ff_dim)
+        self.self_attn_x = EncoderLayer(out_dim, attention_heads, ff_dim, dropout)
+        self.self_attn_y = EncoderLayer(out_dim, attention_heads, ff_dim, dropout)
         
-        self.cross_attn_x = DecoderLayer(out_dim, attention_heads, ff_dim)
-        self.cross_attn_y = DecoderLayer(out_dim, attention_heads, ff_dim)
+        self.cross_attn_x = DecoderLayer(out_dim, attention_heads, ff_dim, dropout)
+        self.cross_attn_y = DecoderLayer(out_dim, attention_heads, ff_dim, dropout)
         
         self.pos_emb = StaticPositionalEncoding(out_dim)
     
@@ -33,11 +33,8 @@ class KeypointsEncoderLayer(nn.Module):
     
     def forward(self, x_coord, y_coord, attention_mask):
         
-        x_embed, y_embed = self.coordinate_mapping(x_coord, y_coord)
-    
-        
-        x_embed = self.pos_emb(x_embed)
-        y_embed = self.pos_emb(y_embed)
+        x_embed = self.pos_emb(x_coord)
+        y_embed = self.pos_emb(y_coord)
         
         x_embed = self.first_norm_x(x_embed)
         y_embed = self.first_norm_y(y_embed)
@@ -78,7 +75,7 @@ class KeypointsEncoder(nn.Module):
         
         self.layers = nn.ModuleList(self.layers)
 
-        self.cross_attention = CrossAttention(net[-1][0], attention_heads, dropout=0.0)
+        self.cross_attention = DecoderLayer(net[-1][0], attention_heads, net[-1][2])
     
     def forward(self, keypoints, attention_mask):
         
@@ -128,12 +125,12 @@ class RecognitionNetwork(nn.Module):
         right_ouput = torch.cat([right_embed, face_embed], dim=-1)
 
         valid_len_in = src_input['valid_len_in']
-        # mask_head = src_input['mask_head']
+        mask_head = src_input['mask_head']
         
-        body_head = self.body_visual_head(body_embed, mask, valid_len_in)  
-        left_head = self.left_visual_head(left_ouput, mask, valid_len_in)  
-        right_head = self.right_visual_head(right_ouput, mask, valid_len_in)  
-        fuse_head = self.fuse_visual_head(fuse_ouput, mask, valid_len_in)
+        body_head = self.body_visual_head(body_embed, mask_head, valid_len_in)  
+        left_head = self.left_visual_head(left_ouput, mask_head, valid_len_in)  
+        right_head = self.right_visual_head(right_ouput, mask_head, valid_len_in)  
+        fuse_head = self.fuse_visual_head(fuse_ouput, mask_head, valid_len_in)
         
         head_outputs = {'ensemble_last_gloss_logits': (left_head['gloss_probabilities'] + right_head['gloss_probabilities'] +
                                                            body_head['gloss_probabilities']+fuse_head['gloss_probabilities']).log(),
