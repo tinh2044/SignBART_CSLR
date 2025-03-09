@@ -8,8 +8,8 @@ from model.layers import CoordinateMapping, FeedForwardLayer
 from model.visual_head import VisualHead
 from model.layers import StaticPositionalEncoding
 from model.utils import create_attention_mask
-from model.encoder import EncoderLayer
-from model.decoder import DecoderLayer
+from model.encoder import EncoderLayer, Encoder
+from model.decoder import DecoderLayer, Decoder
 class KeypointsEncoderLayer(nn.Module):
     def __init__(self, joint_idx, in_dim, out_dim, ff_dim, attention_heads, dropout=0.1):
         super().__init__()
@@ -63,31 +63,36 @@ class KeypointsEncoderLayer(nn.Module):
         return x_embed, y_embed
     
 class KeypointsEncoder(nn.Module):
-    def __init__(self, joint_idx, net):
+    def __init__(self, joint_idx, cfg):
         super().__init__()
         
-        self.coordinate_mapping = CoordinateMapping(len(joint_idx), net[0][0])
+        self.coordinate_mapping = CoordinateMapping(len(joint_idx), cfg['d_model'])
         
-        self.layers = []
-        
-        for i, (in_dim, out_dim, ff_dim, attention_heads) in enumerate(net):
-            self.layers.append(KeypointsEncoderLayer(joint_idx, in_dim, out_dim, ff_dim, attention_heads, dropout=i*0.05))
-        
-        self.layers = nn.ModuleList(self.layers)
+        self.trans_encoder = Encoder(cfg)
+        self.trans_decoder = Decoder(cfg)
 
-        self.cross_attention = DecoderLayer(net[-1][0], attention_heads, net[-1][2])
+        
+        # for i, (in_dim, out_dim, ff_dim, attention_heads) in enumerate(net):
+        #     self.encoder_layers.append(KeypointsEncoderLayer(joint_idx, in_dim, out_dim, ff_dim, attention_heads, dropout=i*0.05))
+        
+        # self.layers = nn.ModuleList(self.layers)
+
+        # self.cross_attention = DecoderLayer(net[-1][0], attention_heads, net[-1][2])
     
     def forward(self, keypoints, attention_mask):
         
-        attention_mask = create_attention_mask(attention_mask, keypoints.dtype)
         
         x_embed, y_embed = self.coordinate_mapping(keypoints[:, :, :, 0], keypoints[:, :, :, 1])
-        for encoder_layer in self.layers:
-            x_embed, y_embed = encoder_layer(x_embed, y_embed, attention_mask)
+        # for encoder_layer in self.layers:
+        #     x_embed, y_embed = encoder_layer(x_embed, y_embed, attention_mask)
         
-        x = self.cross_attention(x_embed, y_embed, attention_mask)
+        # x = self.cross_attention(x_embed, y_embed, attention_mask)
         
-        return x
+        x_embed = self.trans_encoder( x_embed=x_embed, attention_mask=attention_mask)
+        output = self.trans_decoder(encoder_hidden_states=x_embed, encoder_attention_mask=attention_mask, 
+                               y_embed=y_embed, attention_mask=attention_mask)
+        
+        return output
 
 class RecognitionNetwork(nn.Module):
     def __init__(self, cfg, gloss_tokenizer):
@@ -95,10 +100,10 @@ class RecognitionNetwork(nn.Module):
         self.cfg = cfg
         self.cross_distillation = cfg['cross_distillation']
         
-        self.body_encoder = KeypointsEncoder(cfg['body_idx'], cfg['net'])
-        self.left_encoder = KeypointsEncoder(cfg['left_idx'], cfg['net'])
-        self.right_encoder = KeypointsEncoder(cfg['right_idx'], cfg['net'])
-        self.face_encoder = KeypointsEncoder(cfg['face_idx'], cfg['net'])
+        self.body_encoder = KeypointsEncoder(cfg['body_idx'], cfg)
+        self.left_encoder = KeypointsEncoder(cfg['left_idx'], cfg)
+        self.right_encoder = KeypointsEncoder(cfg['right_idx'], cfg)
+        self.face_encoder = KeypointsEncoder(cfg['face_idx'], cfg)
         
         self.body_visual_head = VisualHead(**cfg['body_visual_head'], cls_num=len(gloss_tokenizer))
         self.left_visual_head = VisualHead(**cfg['left_visual_head'], cls_num=len(gloss_tokenizer))

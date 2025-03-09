@@ -1,32 +1,46 @@
 import torch
 import torch.nn as nn
-from model.attention import CrossAttention, CausalSelfAttention
-from model.layers import LearningPositionEmbedding
-from model.utils import create_attention_mask, create_causal_attention_mask
+from .attention import CrossAttention, CausalSelfAttention
+from .layers import LearningPositionEmbedding
+from .utils import create_attention_mask, create_causal_attention_mask
 
 class DecoderLayer(nn.Module):
-    def __init__(self, d_model, attention_heads, ff_dim, dropout=0.2):
+    def __init__(self, config):
         super().__init__()
-        self.d_model = d_model
+        self.d_model = config['d_model']
+
+        self.self_attn = CausalSelfAttention(
+            d_model=self.d_model,
+            num_heads=config['decoder_attention_heads'],
+            dropout=config['attention_dropout'])
         
-        self.dropout = dropout
+        self.dropout = config['dropout']
         self.activation_fn = nn.GELU()
-        self.activation_dropout = dropout
+        self.activation_dropout = config['activation_dropout']
 
         self.self_attn_layer_norm = nn.LayerNorm(self.d_model)
         self.encoder_attn = CrossAttention(
             self.d_model,
-            attention_heads,
-            dropout=0.0
+            config['decoder_attention_heads'],
+            dropout=config['attention_dropout']
         )
         
         self.encoder_attn_layer_norm = nn.LayerNorm(self.d_model)
-        self.fc1 = nn.Linear(self.d_model, ff_dim)
-        self.fc2 = nn.Linear(ff_dim, self.d_model)
+        self.fc1 = nn.Linear(self.d_model, config['decoder_ffn_dim'])
+        self.fc2 = nn.Linear(config['decoder_ffn_dim'], self.d_model)
         self.final_layer_norm = nn.LayerNorm(self.d_model)
         
-    def forward(self, hidden_states, encoder_hidden_states, encoder_attention_mask):
+    def forward(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask):
         residual = hidden_states
+    
+        hidden_states = self.self_attn(hidden_states, attention_mask)
+        
+        hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
+        hidden_states = residual + hidden_states
+        hidden_states = self.self_attn_layer_norm(hidden_states)
+
+        residual = hidden_states
+
         hidden_states  = self.encoder_attn(hidden_states, encoder_hidden_states, encoder_attention_mask)
         
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
@@ -70,7 +84,8 @@ class Decoder(nn.Module):
             encoder_attention_mask, y_embed.dtype, tgt_len=input_shape[-1]
         )
 
-        y_embed = self.embed_positions(y_embed)
+        pos_embed = self.embed_positions(y_embed)
+        y_embed = y_embed + pos_embed
         hidden_states = self.layernorm_embedding(y_embed)
 
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)

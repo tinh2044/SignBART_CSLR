@@ -1,24 +1,25 @@
 import torch
 import torch.nn as nn
-from model.attention import SelfAttention
-from model.layers import LearningPositionEmbedding
-from  model.utils import create_attention_mask
+from .attention import SelfAttention
+from .layers import LearningPositionEmbedding
+from .utils import create_attention_mask
 
 class EncoderLayer(nn.Module):
-    def __init__(self, d_model, attention_heads, ffn_dim, dropout=0.2):
+    def __init__(self, config):
         super().__init__()
-        self.d_model = d_model
+        self.d_model = config['d_model']
+
         self.self_attn = SelfAttention(
             d_model=self.d_model,
-            num_heads=attention_heads,
-            dropout=0.0,
+            num_heads=config['encoder_attention_heads'],
+            dropout=config['attention_dropout'],
         )
         self.self_attn_layer_norm = nn.LayerNorm(self.d_model)
-        self.dropout = dropout
+        self.dropout = config['dropout']
         self.activation_fn = nn.GELU()
-        self.activation_dropout = dropout
-        self.fc1 = nn.Linear(self.d_model, ffn_dim)
-        self.fc2 = nn.Linear(ffn_dim, self.d_model)
+        self.activation_dropout = config['activation_dropout']
+        self.fc1 = nn.Linear(self.d_model, config['encoder_ffn_dim'])
+        self.fc2 = nn.Linear(config['encoder_ffn_dim'], self.d_model)
         self.final_layer_norm = nn.LayerNorm(self.d_model)
 
     def forward(self, hidden_states, attention_mask):
@@ -63,8 +64,8 @@ class Encoder(nn.Module):
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
     def forward(self, x_embed, attention_mask):
-        
-        x_embed = self.embed_positions(x_embed)
+        pos_embed = self.embed_positions(x_embed)
+        x_embed = x_embed + pos_embed
 
         hidden_states = self.layernorm_embedding(x_embed)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
